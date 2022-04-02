@@ -10,16 +10,18 @@ final_tree <- read.tree("data/20161115_pruned_tree_cutoff_0_03.nwk")
 enz_oi <- c("uvrA", "nfi", "mutT", "mutY", "mutL", "mutS", "mutH", "uvrD", "dnaQ", "ung", "mutM")
 
 enz_transitions <- sapply(enz_oi,function(x) NULL)
+anc_state <- sapply(enz_oi,function(x) NULL)
 lost_nodes <- sapply(enz_oi, function(x) NULL)
 gain_nodes <- sapply(enz_oi, function(x) NULL)
 for(i in 1:length(enz_oi)) {
   if(file.exists(paste0("data/20180206_", enz_oi[i], "_transitions.csv"))) {
-    enz_transitions[[enz_oi[i]]] <- read.csv(paste0("20180206_",enz_oi[i],"_transitions.csv"),header = T,row.names = 1)
+    enz_transitions[[enz_oi[i]]] <- read.csv(paste0("data/20180206_",enz_oi[i],"_transitions.csv"),header = T,row.names = 1)
     changed_idx <- which(enz_transitions[[enz_oi[i]]]$change==1 & enz_transitions[[enz_oi[i]]]$d_state==0)
     d_nodes <- as.numeric(sapply(enz_transitions[[enz_oi[i]]]$p_d_node, function(x) strsplit(x, split = "_")[[1]][2]))
     lost_nodes[[enz_oi[i]]] <- d_nodes[changed_idx]
     changed_idx <- which(enz_transitions[[enz_oi[i]]]$change==1 & enz_transitions[[enz_oi[i]]]$d_state==1)
     gain_nodes[[enz_oi[i]]] <- d_nodes[changed_idx]
+    anc_state[[enz_oi[i]]] <- enz_transitions[[enz_oi[i]]]$p_state[grep((Ntip(final_tree)+1),enz_transitions[[enz_oi[i]]]$p_d_node)[1]]
   }
   
 }
@@ -152,13 +154,33 @@ phylo.heatmap(tree = final_tree,X = rem_enz_pa_matrix,fsize = c(0.1,1,0.1),color
 dev.off()
 
 ###Calculating aggregate biases at every node in every lineage of the tree####
+##define lineages and normalised distances from the tree
+tip_heights <- sapply(1:Ntip(final_tree), function(x) nodeheight(final_tree, x))
+node_vec <- (Ntip(final_tree)+1):(Ntip(final_tree)+Nnode(final_tree))
+desc_list <- sapply(node_vec, function(y) getDescendants(final_tree, node = y))
+
+norm_node_heights2 <- vector("list", length(node_vec))
+names(norm_node_heights2) <- as.vector(node_vec)
+all_parent_nodes <- list()
+for(i in 1:Ntip(final_tree)) {
+  parent_nodes <- node_vec[which(sapply(desc_list, function(x) i %in% x))]
+  all_parent_nodes[[i]] <- parent_nodes
+  norm_hts <- sapply(parent_nodes, function(x) nodeheight(final_tree, x))/tip_heights[i]
+  names(norm_hts) <- as.character(parent_nodes)
+  for(j in 1:length(parent_nodes)) {
+    norm_node_heights2[[as.character(parent_nodes[j])]] <- c(norm_node_heights2[[as.character(parent_nodes[j])]], norm_hts[as.character(parent_nodes[j])])
+  }
+}
+
+avg_norm_node_heights <- sapply(norm_node_heights2, min)
+
 ##Tv/Ts
 all_sums_list <- list()
 tip_norm_dist <- list()
 for(i in 1:length(all_parent_nodes)) {
   ##all
   all_state_mat2 <- sapply(enz_oi, function(x) 1-enz_transitions[[x]]$d_state[match(all_parent_nodes[[i]], d_nodes)])
-  all_state_mat2[1, ] <- 1-anc_state
+  all_state_mat2[1, ] <- 1-unlist(anc_state)
   all_state_mat2 <- rbind(all_state_mat2, 1-new_pa_matrix[final_tree$tip.label[[i]], enz_oi])
   rownames(all_state_mat2) <- as.character(c(all_parent_nodes[[i]], i))
   all_sums2 <- vector(mode = "numeric", length = nrow(all_state_mat2))
@@ -201,7 +223,7 @@ all_sums_list_at_gc <- list()
 for(i in 1:length(all_parent_nodes)) {
   ##all
   all_state_mat3 <- sapply(enz_oi, function(x) 1-enz_transitions[[x]]$d_state[match(all_parent_nodes[[i]], d_nodes)])
-  all_state_mat3[1, ] <- 1-anc_state
+  all_state_mat3[1, ] <- 1-unlist(anc_state)
   all_state_mat3 <- rbind(all_state_mat3, 1-new_pa_matrix[final_tree$tip.label[[i]], enz_oi])
   rownames(all_state_mat3) <- as.character(c(all_parent_nodes[[i]], i))
   all_sums3 <- vector(mode = "numeric", length = nrow(all_state_mat3))
@@ -236,6 +258,67 @@ for(i in 1:length(all_parent_nodes)) {
   all_sums_list_at_gc[[i]] <- all_sums3
   
 }
+
+##GC/AT - scaled bias values corrected for by GC content of each node
+
+# gc_anc <- read.csv("F:/Idea_new_backup/Ortho_detection/StableTraits_output.csv", header = T, row.names = 1)
+# 
+# rows_to_tips <- match(gc_anc$Parameter[c(-1, -2)], final_tree$tip.label)
+# node_nos  <- Ntip(final_tree) + as.numeric(gsub("n", "", gc_anc$Parameter)) + 1
+# 
+# rows_to_tips[is.na(rows_to_tips)] <- node_nos[!is.na(node_nos)]
+# 
+# gc_anc_values <- gc_anc$Median[c(-1, -2)]
+# names(gc_anc_values) <- as.character(rows_to_tips)
+# 
+# all_sums_list_at_gc <- list()
+# for(i in 1:length(all_parent_nodes)) {
+#   ##all
+#   all_state_mat3 <- sapply(enz_oi, function(x) 1-enz_transitions[[x]]$d_state[match(all_parent_nodes[[i]], d_nodes)])
+#   all_state_mat3[1, ] <- 1-unlist(anc_state)
+#   all_state_mat3 <- rbind(all_state_mat3, 1-new_pa_matrix[final_tree$tip.label[[i]], enz_oi])
+#   rownames(all_state_mat3) <- as.character(c(all_parent_nodes[[i]], i))
+#   all_sums3 <- vector(mode = "numeric", length = nrow(all_state_mat3))
+#   names(all_sums3) <- rownames(all_state_mat3)
+#   for(j in 1:nrow(all_state_mat3)) {
+#     ##double triple checks
+#     state_check <- c(
+#       mutL_mutS_mutH = 3-sum(all_state_mat3[j, c("mutL", "mutS", "mutH")]),
+#       # mutL_mutS_mutY = 3-sum(all_state_mat3[j, c("mutL", "mutS", "mutY")]),
+#       mutL_mutY = 2-sum(all_state_mat3[j, c("mutL", "mutY")]),
+#       mutL_mutS = 2-sum(all_state_mat3[j, c("mutL", "mutS")]),
+#       mutM_mutY = 2-sum(all_state_mat3[j, c("mutM", "mutY")]),
+#       mutL_dnaQ = 2-sum(all_state_mat3[j, c("mutL", "dnaQ")])
+#     )
+#     if(any(state_check == 0)) {
+#       multi_kos <- names(state_check)[state_check==0]
+#       # if("mutL_mutS_mutY" %in% multi_kos) {
+#       #   multi_kos <- multi_kos[!multi_kos %in% c("mutL_mutS", "mutL_mutY")]
+#       # } 
+#       if("mutL_mutS_mutH" %in% multi_kos) {
+#         multi_kos <- multi_kos[!multi_kos %in% c("mutL_mutS")]
+#       }
+#       
+#       gc_oi <- gc_anc_values[rownames(all_state_mat3)[j]]
+#       gc_corrected_at_gc <- ifelse(scaled_at_gc>0, scaled_at_gc*gc_oi, scaled_at_gc*(1-gc_oi))
+#       gc_corrected_at_gc_multi <- ifelse(scaled_at_gc_multi>0, scaled_at_gc_multi*gc_oi, scaled_at_gc_multi*(1-gc_oi))
+#       
+#       multi_sums <- sum((gc_corrected_at_gc_multi[multi_kos]))
+#       enz_covered <- unique(unlist(sapply(multi_kos, function(x) strsplit(x, split = "_")[[1]])))
+#       rem_enz <- enz_oi[!enz_oi %in% enz_covered]
+#       rem_sums <- sum(all_state_mat3[j,rem_enz]*(gc_corrected_at_gc[rem_enz]))
+#       all_sums3[j] <- (rem_sums + multi_sums)
+#     } else {
+#       gc_oi <- gc_anc_values[rownames(all_state_mat3)[j]]
+#       gc_corrected_at_gc <- ifelse(scaled_at_gc>0, scaled_at_gc*gc_oi, scaled_at_gc*(1-gc_oi))
+#       gc_corrected_at_gc_multi <- ifelse(scaled_at_gc_multi>0, scaled_at_gc_multi*gc_oi, scaled_at_gc_multi*(1-gc_oi))
+#       
+#       all_sums3[j] <- sum(all_state_mat3[j,]*(gc_corrected_at_gc))
+#     }
+#   }
+#   all_sums_list_at_gc[[i]] <- all_sums3
+#   
+# }
 
 ##determine types of events
 bias_diff <- sapply(all_sums_list, diff)
@@ -345,7 +428,17 @@ gc_table <- tibble(
   `4` = c(0, 0, 0, table(total_fluc_at_gc)["4"], 0, 0),
   `5` = c(0, 0, 0, table(total_fluc_at_gc)["5"], 0, 0),
   `6` = c(0, 0, 0, table(total_fluc_at_gc)["6"], 0, 0),
-  `7` = c(0, 0, 0, 0, 0, 0),
+  `7` = c(0, 0, 0, table(total_fluc_at_gc)["7"], 0, 0),
+  `8` = c(0, 0, 0, table(total_fluc_at_gc)["8"], 0, 0),
+  `9` = c(0, 0, 0, table(total_fluc_at_gc)["9"], 0, 0),
+  `10` = c(0, 0, 0, table(total_fluc_at_gc)["10"], 0, 0),
+  `11` = c(0, 0, 0, table(total_fluc_at_gc)["11"], 0, 0),
+  `12` = c(0, 0, 0, table(total_fluc_at_gc)["12"], 0, 0),
+  `13` = c(0, 0, 0, table(total_fluc_at_gc)["13"], 0, 0),
+  `14` = c(0, 0, 0, table(total_fluc_at_gc)["14"], 0, 0),
+  `15` = c(0, 0, 0, table(total_fluc_at_gc)["15"], 0, 0),
+  `16` = c(0, 0, 0, table(total_fluc_at_gc)["16"], 0, 0),
+  # `7` = c(0, 0, 0, 0, 0, 0),
   bias = "GC/AT bias"
 )
 
@@ -354,11 +447,11 @@ btable <- rbind(ts_table %>% reshape2::melt(), gc_table %>% reshape2::melt())
 btable$category <- factor(btable$category, levels = c("No change", "Single change", "Reinforced","Reinforcement\nafter reversal", "Reversal after\nreinforcement", "Reversals"))
 btable$bias <- factor(btable$bias, levels = c("Tv/Ts bias", "GC/AT bias"))
 
-bcols <- c("#8DA0CB", rev(colorRampPalette(c("rosybrown1", "red3"))(7)))
+bcols <- c("#8DA0CB", rev(colorRampPalette(c("rosybrown1", "red3"))(16)))
 
 bplot_h <- btable %>% 
   filter(! category %in% c("Reinforcement\nafter reversal", "Reversal after\nreinforcement")) %>% 
-  mutate(variable = factor(variable, levels = c("events", "7", "6", "5", "4", "3", "2", "1"))) %>% 
+  mutate(variable = factor(variable, levels = c("events", "16", "15", "14", "13", "12", "11", "10", "9", "8", "7", "6", "5", "4", "3", "2", "1"))) %>% 
   ggplot(aes(category, value, fill = variable)) +
   geom_col(width = 0.7) +
   # scale_fill_brewer(palette = "Set2", direction = -1) +
@@ -421,7 +514,7 @@ for(i in 1:Ntip(final_tree)) {
 for(i in which(sapply(bias_diff_at_gc, function(x) all(x == 0)))) {
   lines(tip_norm_dist[[i]], all_sums_list_at_gc[[i]], col = plot_cols_at_gc[i], lwd = 3)
 }
-legend("topleft", legend = c("no change", "single change", "reinforced\nbias", "", 1:7), col = c(cols[1:3], "white", cols[6:12]), lwd = 4, bty = "n", horiz = F, x.intersp = 0.5, y.intersp = 0.6, cex = 1.5, ncol = 3)
+legend("topleft", legend = c("no change", "single change", "reinforced\nbias", "", 1:7), col = c(cols[1:3], "white", cols[6:12]), lwd = 4, bty = "n", horiz = F, x.intersp = 0.5, y.intersp = 0.1, cex = 1.5, ncol = 3)
 text(0, 3.2, labels = "Lineages with:", cex = 1.5, adj = 0)
 text(0.6, 3.2, labels = "No. of reversals", cex = 1.5, adj = 0.5)
 
