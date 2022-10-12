@@ -39,7 +39,9 @@ ts_tv_multi <- c(
 
 scaled_ts_tv <- ifelse(ts_tv<1, -((-1+ts_tv)/min(-1+ts_tv)), ((-1+ts_tv)/max(-1+ts_tv)))
 scaled_ts_tv_multi <- sapply(ts_tv_multi, function(x) ifelse(x<1, -((-1+x)/min(-1+ts_tv)), ((-1+x)/max(-1+ts_tv))))
-
+                             
+##while the actual scaled values were used to calculate the aggregate biases of each lineage and node in the tree (line 158 onwards), the eventual counting of changes in the same or opposite direction were qualtitative i.e. the final bias values were not used to make any conclusions or interpretations in the manuscript
+                             
 at_gc <- c(1.003, 0.957, 0.004, 1.717, 0.416, 0.375, 0.528, 0.607, 0.787, 1.494, 1.243)
 names(at_gc) <- enz_oi
 at_gc_multi <- c(
