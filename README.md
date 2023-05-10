@@ -1,4 +1,4 @@
-# Phylogenetic analysis for DFE MS (Sane et al 2020)
+# Phylogenetic analysis for DFE MS (Sane et al 2022, PNAS)
 
 This repository contains the R script and files to reproduce the panels of Figure 5 (pre-Illustrator adjustments). The code also simulates the character histories for 11 enzymes in the main manuscript. 
 
