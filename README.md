@@ -20,7 +20,7 @@ enz_oi <- colnames(enz_pa_matrix)[6:16]
 
 enz_simmap <- list()
 for(i in 1:length(enz_oi) {
-  enz_pa <- enz_pa_matrix[[i]]
+  enz_pa <- enz_pa_matrix[[enz_oi[i]]]
   rownames(enz_pa) <- enz_pa_matrix[,2]
   enz_simmap[[i]] <- make.simmap(tree = final_tree, x = enz_pa, model = "ARD", nsim = 500, pi="estimated", Q="mcmc")
 }
