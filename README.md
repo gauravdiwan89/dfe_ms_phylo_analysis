@@ -14,5 +14,12 @@ Brief description of files in the data folder
 ```{r}
 library(phytools)
 
+enz_pa_matrix <- read.csv("data/phylo_full_table.csv", colnames = 1)
+enz_oi <- colnames(enz_pa_matrix)[6:16]
 
+for(i in 1:length(enz_oi) {
+  enz_pa <- enz_pa_matrix[,i]
+  rownames(enz_pa) <- enz_pa_matrix[,2]
+  simmap <- make.simmap(tree = final_tree,x = enz_pa,model = "ARD",nsim = 500,pi="estimated",Q="mcmc")
+}
 ```
